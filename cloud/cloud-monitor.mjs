@@ -146,11 +146,13 @@ const reveal = (code) => withRetry(async () => {
 // Two pushes per hit. Headers MUST be plain ASCII — an em-dash (U+2014) in a
 // header throws "Cannot convert argument to a ByteString". Keep titles clean.
 //
-// The label is derived from the ROW's own shiny flag, not from config. A shiny
-// hit says "SHINY +100% IV"; a plain hundo says "100% IV". Getting this from
-// the data means one code path covers both passes correctly.
+// The label is derived from the ROW, not from config. Shiny flag comes from
+// the row's own shiny bit; the IV% comes from the row's iv_percent so the
+// number is the spawn's REAL iv even when MIN_IV=0 (floor off). That keeps a
+// 100% shiny distinguishable from a random shiny in the push body.
 async function notify(hit) {
-  const label = hit.shiny ? `SHINY +${MIN_IV}% IV` : `${MIN_IV}% IV`;
+  const pct = hit.iv_percent != null ? Math.round(hit.iv_percent) : MIN_IV;
+  const label = hit.shiny ? `SHINY ${pct}% IV` : `${pct}% IV`;
 
   const body = [
     label,
