@@ -24,7 +24,10 @@
 //   POGO_JWT      required. your site session. trainer must be linked or the
 //                 shiny filter returns 403 trainer_not_linked.
 //   NTFY_TOPIC    required. ntfy.sh topic for push notifications.
-//   SPECIES_IDS   pass A dex ids. default: 4,1,7
+//   SPECIES_IDS   pass A dex ids, OR the sentinel "any"/"all" (or blank) to
+//                 drop the species filter entirely — pokemon_ids:[] means "no
+//                 species filter" server-side (same as monitor.mjs
+//                 --any-species). instance 3 default: any.
 //   SHINY         pass A shiny toggle. "true" (default) or "false"
 //   HUNDO_IDS     pass B dex ids, watched for plain 100% IV. default: "" (off)
 //   MIN_IV        shared IV floor. default 100
@@ -37,8 +40,12 @@ const API = "https://coordinates-api.pokemongopro.com";
 
 const JWT = process.env.POGO_JWT;
 const NTFY_TOPIC = process.env.NTFY_TOPIC;
-const SHINY_IDS = (process.env.SPECIES_IDS || "4,1,7")
-  .split(",").map(Number).filter(Boolean);
+// SPECIES_IDS accepts a comma list OR the sentinel "any"/"all" (or blank).
+// Empty pokemon_ids[] is the site's own "no species selected" default, so it
+// scans every species — that is what "remove the track list" means here.
+const RAW_IDS = (process.env.SPECIES_IDS ?? "").trim();
+const ANY_SPECIES = !RAW_IDS || /^(any|all)$/i.test(RAW_IDS);
+const SHINY_IDS = ANY_SPECIES ? [] : RAW_IDS.split(",").map(Number).filter(Boolean);
 const HUNDO_IDS = (process.env.HUNDO_IDS || "")
   .split(",").map(Number).filter(Boolean);
 const MIN_IV = Number(process.env.MIN_IV || 100);
@@ -54,7 +61,7 @@ if (!JWT || !NTFY_TOPIC) {
 // Each pass is one API call. Backwards compatible: with HUNDO_IDS empty this
 // is exactly the old single-pass behaviour.
 const PASSES = [];
-if (SHINY_IDS.length) {
+if (ANY_SPECIES || SHINY_IDS.length) {
   PASSES.push({ tag: WANT_SHINY ? "shiny" : "hundo", ids: SHINY_IDS, shiny: WANT_SHINY });
 }
 if (HUNDO_IDS.length) {
@@ -210,7 +217,7 @@ async function main() {
   log("====================================================");
   log("  PoGo cloud monitor (GitHub Actions)");
   for (const p of PASSES) {
-    log(`  pass ${p.tag.padEnd(7)}: [${p.ids.join(",")}] ${p.shiny ? "shiny " : ""}${MIN_IV}%+ IV`);
+    log(`  pass ${p.tag.padEnd(7)}: [${p.ids.length ? p.ids.join(",") : "any"}] ${p.shiny ? "shiny " : ""}${MIN_IV}%+ IV`);
   }
   log(`  region   : ${process.env.GITHUB_ACTIONS ? "github runner" : "local"}`);
   log("====================================================");
